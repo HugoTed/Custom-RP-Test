@@ -12,5 +12,7 @@ CBUFFER_END
 float4x4 unity_MatrixVP;
 float4x4 unity_MatrixV;
 float4x4 glstate_matrix_projection;
+//有些图形api的uv中的v是顶部开始的，有些是底部，所以用这个参数来计算是否要变换
+float4 _ProjectionParams;
 
 #endif

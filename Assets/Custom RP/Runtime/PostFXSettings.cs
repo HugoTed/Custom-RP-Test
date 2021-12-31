@@ -20,4 +20,19 @@ public class PostFXSettings : ScriptableObject
         }
     }
 
+    [System.Serializable]
+    public struct BloomSettings
+    {
+        [Range(0, 16)]
+        public int maxIterations;
+
+        [Min(1f)]
+        public int downScaleLimit;
+    }
+
+    [SerializeField]
+    BloomSettings bloom = default;
+
+    public BloomSettings Bloom => bloom;
+
 }
