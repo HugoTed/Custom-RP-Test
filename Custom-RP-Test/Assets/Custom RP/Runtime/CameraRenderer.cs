@@ -15,7 +15,7 @@ public partial class CameraRenderer
 
     static ShaderTagId unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
 
-    public void Render(ScriptableRenderContext context,Camera camera)
+    public void Render(ScriptableRenderContext context, Camera camera, bool useDynamicBatching, bool useGPUInstancing)
     {
         this.context = context;
         this.camera = camera;
@@ -28,7 +28,7 @@ public partial class CameraRenderer
         }
 
         Setup();
-        DrawVisibleGeometry();
+        DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
         DrawUnsupportShaders();
         DrawGizmos();
         Sumbit();
@@ -72,7 +72,7 @@ public partial class CameraRenderer
         buffer.Clear();
     }
 
-    void DrawVisibleGeometry()
+    void DrawVisibleGeometry(bool useDynamicBatching,bool useGPUInstancing)
     {
         //对可见对象进行排序，以及要调用的shader pass
         var sortingSettings = new SortingSettings(camera)
@@ -80,7 +80,13 @@ public partial class CameraRenderer
             //强制渲染顺序
             criteria = SortingCriteria.CommonOpaque
         };
-        var drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings);
+        var drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings) 
+        { 
+            //启用动态批处理
+            enableDynamicBatching = useDynamicBatching,
+            //禁用GPU Instance
+            enableInstancing = useGPUInstancing
+        };
         //允许所有渲染队列
         var filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
         //调用剔除结果作为参数进行渲染
