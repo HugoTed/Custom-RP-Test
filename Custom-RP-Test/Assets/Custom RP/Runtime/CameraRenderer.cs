@@ -13,7 +13,11 @@ public partial class CameraRenderer
 
     CullingResults cullingResults;
 
-    static ShaderTagId unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit");
+    static ShaderTagId
+        unlitShaderTagId = new ShaderTagId("SRPDefaultUnlit"),
+        litShaderTagId = new ShaderTagId("CustomLit");
+
+    Lighting lighting = new Lighting();
 
     public void Render(ScriptableRenderContext context, Camera camera, bool useDynamicBatching, bool useGPUInstancing)
     {
@@ -26,8 +30,9 @@ public partial class CameraRenderer
         {
             return;
         }
-
         Setup();
+        //初始化灯光
+        lighting.Setup(context);
         DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
         DrawUnsupportShaders();
         DrawGizmos();
@@ -87,6 +92,8 @@ public partial class CameraRenderer
             //禁用GPU Instance
             enableInstancing = useGPUInstancing
         };
+        //设置lit pass
+        drawingSettings.SetShaderPassName(1, litShaderTagId);
         //允许所有渲染队列
         var filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
         //调用剔除结果作为参数进行渲染
