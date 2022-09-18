@@ -32,7 +32,7 @@ public partial class CameraRenderer
         }
         Setup();
         //初始化灯光
-        lighting.Setup(context);
+        lighting.Setup(context,cullingResults);
         DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
         DrawUnsupportShaders();
         DrawGizmos();
