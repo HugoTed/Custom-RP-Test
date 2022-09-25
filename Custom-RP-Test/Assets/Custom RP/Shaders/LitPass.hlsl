@@ -5,6 +5,7 @@
 #include "../ShaderLibrary/Common.hlsl"
 #include "../ShaderLibrary/Surface.hlsl"
 #include "../ShaderLibrary/Light.hlsl"
+#include "../ShaderLibrary/BRDF.hlsl"
 #include "../ShaderLibrary/Lighting.hlsl"
 
 //CBUFFER_START(UnityPerMaterial)
@@ -17,6 +18,8 @@ UNITY_INSTANCING_BUFFER_START(Props)
 	UNITY_DEFINE_INSTANCED_PROP(float4,_BaseMap_ST)
 	UNITY_DEFINE_INSTANCED_PROP(float4, _BaseColor)
 	UNITY_DEFINE_INSTANCED_PROP(float, _Cutoff)
+	UNITY_DEFINE_INSTANCED_PROP(float, _Metallic)
+	UNITY_DEFINE_INSTANCED_PROP(float, _Smoothness)
 UNITY_INSTANCING_BUFFER_END(Props)
 
 struct Attributes{
@@ -28,6 +31,7 @@ struct Attributes{
 
 struct Varyings {
 	float4 positionCS : SV_POSITION;
+	float3 positionWS : VAR_POSITION;
 	float3 normalWS : VAR_NORMAL;
 	float2 baseUV : VAR_BASE_UV;
 	UNITY_VERTEX_INPUT_INSTANCE_ID 
@@ -37,8 +41,8 @@ Varyings LitPassVertex (Attributes input) { //: SV_POSITION {
 	Varyings output;
 	UNITY_SETUP_INSTANCE_ID(input);
 	UNITY_TRANSFER_INSTANCE_ID(input, output);
-	float3 positionWS = TransformObjectToWorld(input.positionOS);
-	output.positionCS = TransformWorldToHClip(positionWS);
+	output.positionWS = TransformObjectToWorld(input.positionOS);
+	output.positionCS = TransformWorldToHClip(output.positionWS);
 	output.normalWS = TransformObjectToWorldNormal(input.normalOS);
 	float4 baseST = UNITY_ACCESS_INSTANCED_PROP(Props, _BaseMap_ST);
 	output.baseUV = input.baseUV * baseST.xy + baseST.zw;
@@ -55,9 +59,18 @@ float4 LitPassFragment (Varyings input) : SV_TARGET {
 	
 	Surface surface;
 	surface.normal = normalize(input.normalWS);
+	surface.viewDirection = normalize(_WorldSpaceCameraPos - input.positionWS);
 	surface.color = base.rgb;
 	surface.alpha = base.a;
-	float3 color = GetLighting(surface);
+	surface.metallic = UNITY_ACCESS_INSTANCED_PROP(Props,_Metallic);
+	surface.smoothness = UNITY_ACCESS_INSTANCED_PROP(Props,_Smoothness);
+	#if defined(_PREMULTIPLY_ALPHA)
+		BRDF brdf = GetBRDF(surface,true);
+	#else
+		BRDF brdf = GetBRDF(surface);
+	#endif
+	
+	float3 color = GetLighting(surface,brdf);
 	return float4(color,surface.alpha);
 }
 
