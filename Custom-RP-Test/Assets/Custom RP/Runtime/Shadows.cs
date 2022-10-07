@@ -24,20 +24,32 @@ public class Shadows
         dirShadowMatricesId = Shader.PropertyToID("_DirectionalShadowMatrices"),
         cascadeCountId = Shader.PropertyToID("_CascadeCount"),
         cascadeCullingSpheresId = Shader.PropertyToID("_CascadeCullingSpheres"),
+        cascadeDataId = Shader.PropertyToID("_CascadeData"),
+        shadowAtlasSizeId = Shader.PropertyToID("_ShadowAtlasSize"),
         shadowDistanceFadeId = Shader.PropertyToID("_ShadowDistanceFade");
 
 
-    static Vector4[] cascadeCullingSpheres = new Vector4[maxCascades];
+    static Vector4[]
+        cascadeCullingSpheres = new Vector4[maxCascades],
+        cascadeData = new Vector4[maxCascades];
 
     //阴影变换矩阵
     static Matrix4x4[]
         dirShadowMatrices = new Matrix4x4[maxShadowedDirectionalLightCount * maxCascades];
 
-
+    //PCF变体
+    static string[] directionalFilterKeywords =
+    {
+        "_DIRECTIONAL_PCF3",
+        "_DIRECTIONAL_PCF5",
+        "_DIRECTIONAL_PCF7",
+    };
 
     struct ShadowedDirectionalLight
     {
         public int visibleLightIndex;
+        public float slopeScaleBias;
+        public float nearPlaneOffset;
     }
 
     ShadowedDirectionalLight[] shadowedDirectionalLights =
@@ -52,7 +64,7 @@ public class Shadows
         ShadowedDirectionalLightCount = 0;
     }
     //阴影贴图中为灯光的阴影贴图保留空间，并存储渲染它们所需的信息
-    public Vector2 ReserveDirectionalShadows(Light light,int visibleLightIndex)
+    public Vector3 ReserveDirectionalShadows(Light light,int visibleLightIndex)
     {
         if (ShadowedDirectionalLightCount < maxShadowedDirectionalLightCount &&
             light.shadows != LightShadows.None && light.shadowStrength > 0f &&
@@ -61,15 +73,18 @@ public class Shadows
             shadowedDirectionalLights[ShadowedDirectionalLightCount] =
                 new ShadowedDirectionalLight
                 {
-                    visibleLightIndex = visibleLightIndex
+                    visibleLightIndex = visibleLightIndex,
+                    slopeScaleBias = light.shadowBias,
+                    nearPlaneOffset = light.shadowNearPlane
                 };
-            //返回阴影强度和阴影贴图偏移索引
-            return new Vector2(
+            //返回阴影强度和阴影贴图偏移索引,阴影法线偏移
+            return new Vector3(
                 light.shadowStrength, 
-                settings.directional.cascadeCount * ShadowedDirectionalLightCount++
-            );
+                settings.directional.cascadeCount * ShadowedDirectionalLightCount++,
+                light.shadowNormalBias
+                );
         }
-        return Vector2.zero;
+        return Vector3.zero;
     }
 
     public void Render()
@@ -108,13 +123,35 @@ public class Shadows
         buffer.SetGlobalInt(cascadeCountId, settings.directional.cascadeCount);
         buffer.SetGlobalVectorArray(
             cascadeCullingSpheresId, cascadeCullingSpheres);
+        buffer.SetGlobalVectorArray(cascadeDataId, cascadeData);
         buffer.SetGlobalMatrixArray(dirShadowMatricesId, dirShadowMatrices);
         float f = 1f - settings.directional.cascadeFade;
         buffer.SetGlobalVector(shadowDistanceFadeId,
             new Vector4(1f / settings.maxDistance, 1f / settings.distanceFade,
                         1f / (1f - f * f)));
+        SetKeywords();
+        //图集大小，纹素大小
+        buffer.SetGlobalVector(
+            shadowAtlasSizeId, new Vector4(atlasSize, 1f / atlasSize)
+        );
         buffer.EndSample(bufferName);
         ExecuteBuffer();
+    }
+
+    private void SetKeywords()
+    {
+        int enabledIndex = (int)settings.directional.filter - 1;
+        for (int i = 0; i < directionalFilterKeywords.Length; i++)
+        {
+            if (i == enabledIndex)
+            {
+                buffer.EnableShaderKeyword(directionalFilterKeywords[i]);
+            }
+            else
+            {
+                buffer.DisableShaderKeyword(directionalFilterKeywords[i]);
+            }
+        }
     }
 
     void RenderDirectionalShadows(int index,int split, int tileSize)
@@ -131,9 +168,9 @@ public class Shadows
         {
             //计算灯光与摄像机可见区域投影矩阵
             cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(
-                light.visibleLightIndex, i, cascadeCount, ratios, tileSize, 0f,
-                out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix,
-                out ShadowSplitData splitData
+                light.visibleLightIndex, i, cascadeCount, ratios, tileSize,
+                light.nearPlaneOffset, out Matrix4x4 viewMatrix,
+                out Matrix4x4 projectionMatrix, out ShadowSplitData splitData
                 );
             //拆分数据包含有关如何剔除阴影投射对象的信息，
             //我们必须将其复制到阴影设置中。
@@ -142,10 +179,7 @@ public class Shadows
             //因为每盏灯都是等价的，所以只对第一盏灯这样做
             if(index == 0)
             {
-                Vector4 cullingSphere = splitData.cullingSphere;
-                //cullingSphere.w为半径
-                cullingSphere.w *= cullingSphere.w;
-                cascadeCullingSpheres[i] = cullingSphere;
+                SetCascadeData(i, splitData.cullingSphere, tileSize);
             }
             int tileIndex = tileOffset + i;
             //世界空间->光照空间
@@ -154,10 +188,29 @@ public class Shadows
                 SetTileViewport(tileIndex, split, tileSize), split
                 );
             buffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
+            buffer.SetGlobalDepthBias(0f, light.slopeScaleBias);
             ExecuteBuffer();
             context.DrawShadows(ref shadowSettings);
+            buffer.SetGlobalDepthBias(0f, 0f);
         }
         
+    }
+
+    void SetCascadeData(int index,Vector4 cullingSphere,float tileSize)
+    {
+        //cullingSphere.w为半径
+        float texelSize = 2f * cullingSphere.w / tileSize;
+        //PCF
+        float filterSize = texelSize * ((float)settings.directional.filter + 1f);       
+        cascadeData[index] = new Vector4(
+            1.0f / cullingSphere.w,
+            //因为纹素是正方形,缩放√2
+            filterSize * 1.4142136f
+            );
+        cullingSphere.w -= filterSize;
+        cullingSphere.w *= cullingSphere.w;
+
+        cascadeCullingSpheres[index] = cullingSphere;
     }
 
     Vector2 SetTileViewport(int index,int split,float tileSize)

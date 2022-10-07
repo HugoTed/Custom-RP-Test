@@ -12,6 +12,11 @@ public class ShadowSettings
     [Range(0.001f, 1f)]
     public float distanceFade = 0.1f;
 
+    public enum FilterMode
+    {
+        PCF2X2,PCF3X3,PCF5X5,PCF7X7
+    }
+
     public enum TextureSize
     {
         _256 = 256,_512=512,
@@ -23,6 +28,8 @@ public class ShadowSettings
     public struct Directional
     {
         public TextureSize atlasSize;
+
+        public FilterMode filter;
 
         [Range(1, 4)]
         public int cascadeCount;
@@ -40,6 +47,7 @@ public class ShadowSettings
     public Directional directional = new Directional
     {
         atlasSize = TextureSize._1024,
+        filter = FilterMode.PCF2X2,
         cascadeCount = 4,
         cascadeRatio1 = 0.1f,
         cascadeRatio2 = 0.25f,
