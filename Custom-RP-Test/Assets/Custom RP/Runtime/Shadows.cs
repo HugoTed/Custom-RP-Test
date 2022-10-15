@@ -28,6 +28,11 @@ public class Shadows
         shadowAtlasSizeId = Shader.PropertyToID("_ShadowAtlasSize"),
         shadowDistanceFadeId = Shader.PropertyToID("_ShadowDistanceFade");
 
+    static string[] cascadeBlendKeywords =
+    {
+        "_CASCADE_BLEND_SOFT",
+        "_CASCADE_BLEND_DITHER"
+    };
 
     static Vector4[]
         cascadeCullingSpheres = new Vector4[maxCascades],
@@ -129,7 +134,8 @@ public class Shadows
         buffer.SetGlobalVector(shadowDistanceFadeId,
             new Vector4(1f / settings.maxDistance, 1f / settings.distanceFade,
                         1f / (1f - f * f)));
-        SetKeywords();
+        SetKeywords(directionalFilterKeywords,(int)settings.directional.filter - 1);
+        SetKeywords(cascadeBlendKeywords, (int)settings.directional.cascadeBlend - 1);
         //图集大小，纹素大小
         buffer.SetGlobalVector(
             shadowAtlasSizeId, new Vector4(atlasSize, 1f / atlasSize)
@@ -138,18 +144,17 @@ public class Shadows
         ExecuteBuffer();
     }
 
-    private void SetKeywords()
+    private void SetKeywords(string[] keywords,int enabledIndex)
     {
-        int enabledIndex = (int)settings.directional.filter - 1;
-        for (int i = 0; i < directionalFilterKeywords.Length; i++)
+        for (int i = 0; i < keywords.Length; i++)
         {
             if (i == enabledIndex)
             {
-                buffer.EnableShaderKeyword(directionalFilterKeywords[i]);
+                buffer.EnableShaderKeyword(keywords[i]);
             }
             else
             {
-                buffer.DisableShaderKeyword(directionalFilterKeywords[i]);
+                buffer.DisableShaderKeyword(keywords[i]);
             }
         }
     }
@@ -164,6 +169,8 @@ public class Shadows
         int tileOffset = index * cascadeCount;
         Vector3 ratios = settings.directional.CascadeRatios;
 
+        float cullingFactor =
+            Mathf.Max(0f, 0.8f - settings.directional.cascadeFade);
         for (int i = 0; i < cascadeCount; i++)
         {
             //计算灯光与摄像机可见区域投影矩阵
@@ -174,6 +181,7 @@ public class Shadows
                 );
             //拆分数据包含有关如何剔除阴影投射对象的信息，
             //我们必须将其复制到阴影设置中。
+            splitData.shadowCascadeBlendCullingFactor = cullingFactor;
             shadowSettings.splitData = splitData;
             //保持级联剔除球体的分割数据
             //因为每盏灯都是等价的，所以只对第一盏灯这样做
