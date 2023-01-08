@@ -89,12 +89,14 @@ public partial class CameraRenderer
             //强制渲染顺序
             criteria = SortingCriteria.CommonOpaque
         };
-        var drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings) 
-        { 
+        var drawingSettings = new DrawingSettings(unlitShaderTagId, sortingSettings)
+        {
             //启用动态批处理
             enableDynamicBatching = useDynamicBatching,
             //禁用GPU Instance
-            enableInstancing = useGPUInstancing
+            enableInstancing = useGPUInstancing,
+            //启用lightmap数据
+            perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe
         };
         //设置lit pass
         drawingSettings.SetShaderPassName(1, litShaderTagId);

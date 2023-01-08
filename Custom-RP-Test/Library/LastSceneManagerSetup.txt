@@ -1,5 +1,5 @@
 sceneSetups:
-- path: Assets/Scenes/Directional Light Shadows.unity
+- path: Assets/Scenes/BakeLight.unity
   isLoaded: 1
   isActive: 1
   isSubScene: 0
