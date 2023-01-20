@@ -3,16 +3,23 @@
 [DisallowMultipleComponent]
 public class PerObjectMaterialProperties : MonoBehaviour
 {
-    static int baseColorId = Shader.PropertyToID("_BaseColor");
-    static int cutoffId = Shader.PropertyToID("_Cutoff");
-    static int metallicId = Shader.PropertyToID("_Metallic");
-    static int smoothnessId = Shader.PropertyToID("_Smoothness");
+    static int
+        baseColorId = Shader.PropertyToID("_BaseColor"),
+        cutoffId = Shader.PropertyToID("_Cutoff"),
+        metallicId = Shader.PropertyToID("_Metallic"),
+        smoothnessId = Shader.PropertyToID("_Smoothness"),
+        emissionColorId = Shader.PropertyToID("_EmissionColor");
+
 
     [SerializeField]
     Color baseColor = Color.white;
 
     [SerializeField, Range(0, 1)]
     float alphaCutoff = 0.5f, metallic = 0f, smoothness = 0.5f;
+
+    //是否显示alpha通道，是否hdr
+    [SerializeField, ColorUsage(false, true)]
+    Color emissionColor = Color.black;
 
     static MaterialPropertyBlock block;
 
@@ -28,6 +35,7 @@ public class PerObjectMaterialProperties : MonoBehaviour
         block.SetFloat(cutoffId, alphaCutoff);
         block.SetFloat(metallicId, metallic);
         block.SetFloat(smoothnessId, smoothness);
+        block.SetColor(emissionColorId, emissionColor);
         GetComponent<Renderer>().SetPropertyBlock(block);
     }
 
