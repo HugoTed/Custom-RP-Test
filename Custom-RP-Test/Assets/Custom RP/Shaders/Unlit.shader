@@ -24,6 +24,7 @@
 			HLSLPROGRAM
 			#pragma target 3.5
 			#pragma shader_feature _CLIPPING
+			#pragma multi_compile _ _SHADOW_MASK_ALWAYS _SHADOW_MASK_DISTANCE
 			#pragma multi_compile_instancing
 			#pragma vertex UnlitPassVertex
 			#pragma fragment UnlitPassFragment

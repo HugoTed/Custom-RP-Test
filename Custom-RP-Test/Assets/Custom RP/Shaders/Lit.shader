@@ -17,6 +17,7 @@
 		[Enum(Off,0,On,1)] _ZWrite("Z Write",float) = 1
 		//unity低层用这两个属性来判断lightmap烘焙中的alpha属性(_MainTex.a*_Color.a)
 		//但是本项目中不使用这两个属性，因此隐藏
+		//但是我们在CustomShaderGUI中会把_BaseMap,_BaseColor的值复制到这两个值中
 		[HideInInspector] _MainTex("Texture for Lightmap", 2D) = "white" {}
 		[HideInInspector] _Color("Color for Lightmap", Color) = (0.5, 0.5, 0.5, 1.0)
 	}
@@ -42,6 +43,7 @@
 			#pragma shader_feature _PREMULTIPLY_ALPHA
 			#pragma multi_compile _ _DIRECTIONAL_PCF3 _DIRECTIONAL_PCF5 _DIRECTIONAL_PCF7
 			#pragma multi_compile _ _CASCADE_BLEND_SOFT _CASCADE_BLEND_DITHER
+			#pragma multi_compile _ _SHADOW_MASK_ALWAYS _SHADOW_MASK_DISTANCE
 			#pragma multi_compile _ LIGHTMAP_ON
 			#pragma multi_compile_instancing
 			#pragma vertex LitPassVertex

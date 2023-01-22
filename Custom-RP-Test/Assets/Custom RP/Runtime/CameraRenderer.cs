@@ -96,8 +96,10 @@ public partial class CameraRenderer
             //禁用GPU Instance
             enableInstancing = useGPUInstancing,
             //启用lightmap数据
-            perObjectData = PerObjectData.Lightmaps | PerObjectData.LightProbe |
-                PerObjectData.LightProbeProxyVolume
+            perObjectData = PerObjectData.Lightmaps | PerObjectData.ShadowMask |
+            PerObjectData.LightProbe | PerObjectData.OcclusionProbe |
+            PerObjectData.LightProbeProxyVolume |
+            PerObjectData.OcclusionProbeProxyVolume
         };
         //设置lit pass
         drawingSettings.SetShaderPassName(1, litShaderTagId);
