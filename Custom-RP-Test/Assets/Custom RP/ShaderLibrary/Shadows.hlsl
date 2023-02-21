@@ -125,7 +125,7 @@ float FilterDirectionalShadow(float3 positionSTS){
 
 float GetCascadedShadow(DirectionalShadowData directional, ShadowData global, Surface surfaceWS){
 	//根据纹素计算法线偏移
-	float3 normalBias = surfaceWS.normal * 
+	float3 normalBias = surfaceWS.interpolatedNormal * 
 		(directional.normalBias * _CascadeData[global.cascadeIndex].y);
 	//将世界位置转换到阴影空间，再对阴影贴图采样
 	float3 positionSTS = mul(
@@ -134,7 +134,7 @@ float GetCascadedShadow(DirectionalShadowData directional, ShadowData global, Su
 	).xyz;
 	float shadow = FilterDirectionalShadow(positionSTS);
 	if(global.cascadeBlend < 1.0){
-		normalBias = surfaceWS.normal *
+		normalBias = surfaceWS.interpolatedNormal *
 			(directional.normalBias * _CascadeData[global.cascadeIndex + 1].y);
 		positionSTS = mul(
 			_DirectionalShadowMatrices[directional.tileIndex + 1],
