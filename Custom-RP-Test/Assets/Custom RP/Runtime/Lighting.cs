@@ -6,8 +6,9 @@ public class Lighting
 {
     const string bufferName = "Lighting";
 
-    const int maxDirLightCount = 4;
+    const int maxDirLightCount = 4, maxOtherLightCount = 4;
 
+    //Direction Light
     static int 
         dirLightCountId = Shader.PropertyToID("_DirectionalLightCount"),
         dirLightColorsId = Shader.PropertyToID("_DirectionalLightColors"),
@@ -20,7 +21,21 @@ public class Lighting
         dirLightDirections = new Vector4[maxDirLightCount],
         dirLightShadowData = new Vector4[maxDirLightCount];
 
-CommandBuffer buffer = new CommandBuffer()
+    //Other Light
+    static int
+        otherLightCountId = Shader.PropertyToID("_OtherLightCount"),
+        otherLightColorsId = Shader.PropertyToID("_OtherLightColors"),
+        otherLightPositionsId = Shader.PropertyToID("_OtherLightPositions"),
+        otherLightDirectionsId = Shader.PropertyToID("_OtherLightDirections");
+
+    static Vector4[]
+        otherLightColors = new Vector4[maxOtherLightCount],
+        otherLightPositions = new Vector4[maxOtherLightCount],
+        otherLightDirections = new Vector4[maxOtherLightCount];
+
+
+
+    CommandBuffer buffer = new CommandBuffer()
     {
         name = bufferName
     };
@@ -48,24 +63,52 @@ CommandBuffer buffer = new CommandBuffer()
         //NativeArray是一个类似于数组的结构，但提供与本机内存缓冲区的连接。
         //它使在托管 C# 代码和本机 Unity 引擎代码之间有效共享数据成为可能。
         NativeArray<VisibleLight> visibleLights = cullingResults.visibleLights;
-        int dirLightCount = 0;
+        int dirLightCount = 0, otherLightCount = 0;
         for (int i = 0; i < visibleLights.Length; i++)
         {
             VisibleLight visibleLight = visibleLights[i];
-            //只支持方向光
-            if (visibleLight.lightType == LightType.Directional)
+
+            //既支持方向光也支持点光源
+            //到达最大方向光数量后，跳过多余的方向光，循环其他光源
+            switch (visibleLight.lightType)
             {
-                SetupDirectionalLight(dirLightCount++, ref visibleLight);
-                if (dirLightCount >= maxDirLightCount)
-                {
+                case LightType.Directional:
+                    if (dirLightCount < maxDirLightCount)
+                    {
+                        SetupDirectionalLight(dirLightCount++, ref visibleLight);
+                    }
                     break;
-                }
-            }           
+                case LightType.Point:
+                    if (otherLightCount < maxOtherLightCount)
+                    {
+                        SetupPointLight(otherLightCount++, ref visibleLight);
+                    }
+                    break;
+                case LightType.Spot:
+                    if(otherLightCount < maxOtherLightCount)
+                    {
+                        SetupSpotLight(otherLightCount++,ref visibleLight);
+                    }
+                    break;
+            }
         }
-        buffer.SetGlobalInt(dirLightCountId, visibleLights.Length);
-        buffer.SetGlobalVectorArray(dirLightColorsId, dirLightColors);
-        buffer.SetGlobalVectorArray(dirLightDirectionsId, dirLightDirections);
-        buffer.SetGlobalVectorArray(dirLightShadowDataId, dirLightShadowData);
+        buffer.SetGlobalInt(dirLightCountId, dirLightCount);
+        if(dirLightCount > 0)
+        {
+            buffer.SetGlobalVectorArray(dirLightColorsId, dirLightColors);
+            buffer.SetGlobalVectorArray(dirLightDirectionsId, dirLightDirections);
+            buffer.SetGlobalVectorArray(dirLightShadowDataId, dirLightShadowData);
+        }
+        //方向光和其他光源都可以独立发送gpu
+        buffer.SetGlobalInt(otherLightCountId, otherLightCount);
+        if (otherLightCount > 0)
+        {
+            buffer.SetGlobalVectorArray(otherLightColorsId, otherLightColors);
+            buffer.SetGlobalVectorArray(otherLightPositionsId, otherLightPositions);
+            buffer.SetGlobalVectorArray(otherLightDirectionsId, otherLightDirections);
+        }
+
+
     }
 
     void SetupDirectionalLight(int index,ref VisibleLight visibleLight) 
@@ -73,6 +116,28 @@ CommandBuffer buffer = new CommandBuffer()
         dirLightColors[index] = visibleLight.finalColor;
         dirLightDirections[index] = -visibleLight.localToWorldMatrix.GetColumn(2);
         dirLightShadowData[index] = shadows.ReserveDirectionalShadows(visibleLight.light, index);
+    }
+
+    void SetupPointLight(int index, ref VisibleLight visibleLight)
+    {
+        otherLightColors[index] = visibleLight.finalColor;
+        Vector4 position = visibleLight.localToWorldMatrix.GetColumn(3);
+        //点光源的超出光照范围position平滑地过渡为0
+        //避免远处镜面反射还能反射点光源
+        position.w = 1f / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
+        otherLightPositions[index] = position;
+    }
+
+    void SetupSpotLight(int index, ref VisibleLight visibleLight)
+    {
+        otherLightColors[index] = visibleLight.finalColor;
+        Vector4 position = visibleLight.localToWorldMatrix.GetColumn(3);
+        //点光源的超出光照范围position平滑地过渡为0
+        //避免远处镜面反射还能反射点光源
+        position.w = 1f / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
+        otherLightPositions[index] = position;
+
+        otherLightDirections[index] = -visibleLight.localToWorldMatrix.GetColumn(2);
     }
 
     public void Cleanup()
