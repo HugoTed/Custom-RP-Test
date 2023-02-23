@@ -26,12 +26,14 @@ public class Lighting
         otherLightCountId = Shader.PropertyToID("_OtherLightCount"),
         otherLightColorsId = Shader.PropertyToID("_OtherLightColors"),
         otherLightPositionsId = Shader.PropertyToID("_OtherLightPositions"),
-        otherLightDirectionsId = Shader.PropertyToID("_OtherLightDirections");
+        otherLightDirectionsId = Shader.PropertyToID("_OtherLightDirections"),
+        otherLightSpotAnglesId = Shader.PropertyToID("_OtherLightSpotAngles");
 
     static Vector4[]
         otherLightColors = new Vector4[maxOtherLightCount],
         otherLightPositions = new Vector4[maxOtherLightCount],
-        otherLightDirections = new Vector4[maxOtherLightCount];
+        otherLightDirections = new Vector4[maxOtherLightCount],
+        otherLightSpotAngles = new Vector4[maxOtherLightCount];
 
 
 
@@ -106,6 +108,7 @@ public class Lighting
             buffer.SetGlobalVectorArray(otherLightColorsId, otherLightColors);
             buffer.SetGlobalVectorArray(otherLightPositionsId, otherLightPositions);
             buffer.SetGlobalVectorArray(otherLightDirectionsId, otherLightDirections);
+            buffer.SetGlobalVectorArray(otherLightSpotAnglesId, otherLightSpotAngles);
         }
 
 
@@ -126,6 +129,7 @@ public class Lighting
         //避免远处镜面反射还能反射点光源
         position.w = 1f / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
         otherLightPositions[index] = position;
+        otherLightSpotAngles[index] = new Vector4(0f, 1f);
     }
 
     void SetupSpotLight(int index, ref VisibleLight visibleLight)
@@ -138,6 +142,17 @@ public class Lighting
         otherLightPositions[index] = position;
 
         otherLightDirections[index] = -visibleLight.localToWorldMatrix.GetColumn(2);
+
+        //saturate(da+b)^2
+        //d = dot(_OtherLightDirections[index].xyz,light.direction)
+        //a = 1 / (cos(ri/2)-cos(r0/2))
+        //b = - cos(r0/2) * a
+        //ri ,r0: inner,outter angle
+        Light light = visibleLight.light;
+        float innerCos = Mathf.Cos(Mathf.Deg2Rad * 0.5f * light.innerSpotAngle);
+        float outterCos = Mathf.Cos(Mathf.Deg2Rad * 0.5f * visibleLight.spotAngle);
+        float angleRangeInv = 1f / Mathf.Max(innerCos - outterCos, 0.001f);
+        otherLightSpotAngles[index] = new Vector4(angleRangeInv, -outterCos * angleRangeInv);
     }
 
     public void Cleanup()

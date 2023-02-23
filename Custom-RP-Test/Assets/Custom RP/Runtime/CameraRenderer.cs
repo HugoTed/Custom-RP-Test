@@ -19,7 +19,9 @@ public partial class CameraRenderer
 
     Lighting lighting = new Lighting();
 
-    public void Render(ScriptableRenderContext context, Camera camera, bool useDynamicBatching, bool useGPUInstancing, ShadowSettings shadowSettings)
+    public void Render(ScriptableRenderContext context, Camera camera,
+        bool useDynamicBatching, bool useGPUInstancing, bool useLightsPerObject,
+        ShadowSettings shadowSettings)
     {
         this.context = context;
         this.camera = camera;
@@ -33,10 +35,10 @@ public partial class CameraRenderer
         buffer.BeginSample(SampleName);
         ExecuteBuffer();
         //初始化灯光
-        lighting.Setup(context,cullingResults,shadowSettings);
+        lighting.Setup(context, cullingResults, shadowSettings);
         buffer.EndSample(SampleName);
         Setup();
-        DrawVisibleGeometry(useDynamicBatching, useGPUInstancing);
+        DrawVisibleGeometry(useDynamicBatching, useGPUInstancing, useLightsPerObject);
         DrawUnsupportShaders();
         DrawGizmos();
         lighting.Cleanup();
@@ -81,8 +83,13 @@ public partial class CameraRenderer
         buffer.Clear();
     }
 
-    void DrawVisibleGeometry(bool useDynamicBatching,bool useGPUInstancing)
+    void DrawVisibleGeometry(bool useDynamicBatching,bool useGPUInstancing,bool useLightsPerObject)
     {
+        //是否启用lightsPerObject模式
+        //启用了该模式，Unity会确定哪些灯光影响每个对象并将此信息发送到GPU
+        PerObjectData lightsPerObjectFlags = useLightsPerObject ?
+            PerObjectData.LightData | PerObjectData.LightIndices :
+            PerObjectData.None;
         //对可见对象进行排序，以及要调用的shader pass
         var sortingSettings = new SortingSettings(camera)
         {
@@ -96,12 +103,13 @@ public partial class CameraRenderer
             //禁用GPU Instance
             enableInstancing = useGPUInstancing,
             //启用lightmap数据
-            perObjectData = 
+            perObjectData =
                 PerObjectData.ReflectionProbes |
                 PerObjectData.Lightmaps | PerObjectData.ShadowMask |
                 PerObjectData.LightProbe | PerObjectData.OcclusionProbe |
                 PerObjectData.LightProbeProxyVolume |
-                PerObjectData.OcclusionProbeProxyVolume
+                PerObjectData.OcclusionProbeProxyVolume |
+                lightsPerObjectFlags
         };
         //设置lit pass
         drawingSettings.SetShaderPassName(1, litShaderTagId);
