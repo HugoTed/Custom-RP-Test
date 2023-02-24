@@ -35,7 +35,7 @@ public partial class CameraRenderer
         buffer.BeginSample(SampleName);
         ExecuteBuffer();
         //初始化灯光
-        lighting.Setup(context, cullingResults, shadowSettings);
+        lighting.Setup(context, cullingResults, shadowSettings, useLightsPerObject);
         buffer.EndSample(SampleName);
         Setup();
         DrawVisibleGeometry(useDynamicBatching, useGPUInstancing, useLightsPerObject);

@@ -8,6 +8,12 @@ float4x4 unity_WorldToObject;
 float4 unity_LODFade;
 real4 unity_WorldTransformParams;
 
+//灯光数量包含在y分量中
+real4 unity_LightData;
+//每个通道包含一个灯光索引
+//每个对象最多支持8个灯光
+real4 unity_LightIndices[2];
+
 float4 unity_ProbesOcclusion;
 float4 unity_SpecCube0_HDR;
 float4 unity_LightmapST;
