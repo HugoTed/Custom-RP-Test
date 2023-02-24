@@ -17,11 +17,16 @@ public class Shadows
 
     ShadowSettings settings;
 
-    const int maxShadowedDirectionalLightCount = 4, maxCascades = 4;
+    const int maxShadowedDirectionalLightCount = 4, maxShadowedOtherLightCount = 16;
+    const int maxCascades = 4;
+
+    Vector4 atlasSizes;
 
     static int
         dirShadowAtlasId = Shader.PropertyToID("_DirectionalShadowAtlas"),
         dirShadowMatricesId = Shader.PropertyToID("_DirectionalShadowMatrices"),
+        otherShadowAtlasId = Shader.PropertyToID("_OtherShadowAtlas"),
+        otherShadowMatricesId = Shader.PropertyToID("_OtherShadowMatrices"),
         cascadeCountId = Shader.PropertyToID("_CascadeCount"),
         cascadeCullingSpheresId = Shader.PropertyToID("_CascadeCullingSpheres"),
         cascadeDataId = Shader.PropertyToID("_CascadeData"),
@@ -40,7 +45,8 @@ public class Shadows
 
     //阴影变换矩阵
     static Matrix4x4[]
-        dirShadowMatrices = new Matrix4x4[maxShadowedDirectionalLightCount * maxCascades];
+        dirShadowMatrices = new Matrix4x4[maxShadowedDirectionalLightCount * maxCascades],
+        otherShadowMatrices = new Matrix4x4[maxShadowedOtherLightCount];
 
     //PCF变体
     static string[] directionalFilterKeywords =
@@ -60,7 +66,7 @@ public class Shadows
     ShadowedDirectionalLight[] shadowedDirectionalLights =
         new ShadowedDirectionalLight[maxShadowedDirectionalLightCount];
 
-    int ShadowedDirectionalLightCount;
+    int shadowedDirectionalLightCount, shadowedOtherLightCount;
 
     bool useShadowMask;
     static string[] shadowMaskKeywords =
@@ -69,18 +75,26 @@ public class Shadows
         "_SHADOW_MASK_DISTANCE"
     };
 
+    //其他光源PCF变体
+    static string[] otherFilterKeywords = {
+        "_OTHER_PCF3",
+        "_OTHER_PCF5",
+        "_OTHER_PCF7",
+    };
+
     public void Setup(ScriptableRenderContext context,CullingResults cullingResults,ShadowSettings shadowSettings)
     {
         this.context = context;
         this.cullingResults = cullingResults;
         this.settings = shadowSettings;
-        ShadowedDirectionalLightCount = 0;
+        shadowedDirectionalLightCount = 0;
+        shadowedOtherLightCount = 0;
         useShadowMask = false;
     }
     //阴影贴图中为灯光的阴影贴图保留空间，并存储渲染它们所需的信息
     public Vector4 ReserveDirectionalShadows(Light light,int visibleLightIndex)
     {
-        if (ShadowedDirectionalLightCount < maxShadowedDirectionalLightCount &&
+        if (shadowedDirectionalLightCount < maxShadowedDirectionalLightCount &&
             light.shadows != LightShadows.None && light.shadowStrength > 0f)
         {
             //shadow mask的通道
@@ -107,7 +121,7 @@ public class Shadows
                 return new Vector4(-light.shadowStrength, 0f, 0f,maskChannel);
             }
             //灯光没有开启阴影或者阴影强度为0就忽略这个灯光
-            shadowedDirectionalLights[ShadowedDirectionalLightCount] =
+            shadowedDirectionalLights[shadowedDirectionalLightCount] =
                 new ShadowedDirectionalLight
                 {
                     visibleLightIndex = visibleLightIndex,
@@ -117,7 +131,7 @@ public class Shadows
             //返回阴影强度和阴影贴图偏移索引,阴影法线偏移
             return new Vector4(
                 light.shadowStrength, 
-                settings.directional.cascadeCount * ShadowedDirectionalLightCount++,
+                settings.directional.cascadeCount * shadowedDirectionalLightCount++,
                 light.shadowNormalBias,maskChannel
                 );
         }
@@ -126,7 +140,7 @@ public class Shadows
 
     public void Render()
     {
-        if(ShadowedDirectionalLightCount > 0)
+        if(shadowedDirectionalLightCount > 0)
         {
             RenderDirectionalShadows();
         }
@@ -135,11 +149,29 @@ public class Shadows
             buffer.GetTemporaryRT(dirShadowAtlasId, 1, 1,
                 32, FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
         }
+        if (shadowedOtherLightCount>0)
+        {
+            RenderOtherShadows();
+        }
+        else
+        {
+            buffer.SetGlobalTexture(otherShadowAtlasId,dirShadowAtlasId);
+        }
 
         buffer.BeginSample(bufferName);
         SetKeywords(shadowMaskKeywords, useShadowMask ?
             QualitySettings.shadowmaskMode == ShadowmaskMode.Shadowmask ? 0 : 1 :
             -1);
+
+        buffer.SetGlobalInt(
+            cascadeCountId,
+            shadowedDirectionalLightCount > 0 ? settings.directional.cascadeCount : 0);
+        float f = 1f - settings.directional.cascadeFade;
+        buffer.SetGlobalVector(shadowDistanceFadeId,
+            new Vector4(1f / settings.maxDistance, 1f / settings.distanceFade,
+                        1f / (1f - f * f)));
+
+        buffer.SetGlobalVector(shadowAtlasSizeId, atlasSizes);
         buffer.EndSample(bufferName);
         ExecuteBuffer();
     }
@@ -147,6 +179,8 @@ public class Shadows
     void RenderDirectionalShadows()
     {
         int atlasSize = (int)settings.directional.atlasSize;
+        atlasSizes.x = atlasSize;
+        atlasSizes.y = 1f / atlasSize;
         buffer.GetTemporaryRT(dirShadowAtlasId, atlasSize, atlasSize,
             32, FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
         buffer.SetRenderTarget(
@@ -156,29 +190,26 @@ public class Shadows
         buffer.BeginSample(bufferName);
         ExecuteBuffer();
         //如果有多个灯光，就分割图集,级联阴影
-        int tiles = ShadowedDirectionalLightCount * settings.directional.cascadeCount;
+        int tiles = shadowedDirectionalLightCount * settings.directional.cascadeCount;
         int split = tiles <= 1 ? 1 : tiles <= 4 ? 2 : 4;
         int tileSize = atlasSize / split;
 
-        for (int i = 0; i < ShadowedDirectionalLightCount; i++)
+        for (int i = 0; i < shadowedDirectionalLightCount; i++)
         {
             RenderDirectionalShadows(i, split, tileSize);
         }
-        buffer.SetGlobalInt(cascadeCountId, settings.directional.cascadeCount);
+        
         buffer.SetGlobalVectorArray(
             cascadeCullingSpheresId, cascadeCullingSpheres);
         buffer.SetGlobalVectorArray(cascadeDataId, cascadeData);
         buffer.SetGlobalMatrixArray(dirShadowMatricesId, dirShadowMatrices);
-        float f = 1f - settings.directional.cascadeFade;
-        buffer.SetGlobalVector(shadowDistanceFadeId,
-            new Vector4(1f / settings.maxDistance, 1f / settings.distanceFade,
-                        1f / (1f - f * f)));
+       
         SetKeywords(directionalFilterKeywords,(int)settings.directional.filter - 1);
         SetKeywords(cascadeBlendKeywords, (int)settings.directional.cascadeBlend - 1);
         //图集大小，纹素大小
-        buffer.SetGlobalVector(
-            shadowAtlasSizeId, new Vector4(atlasSize, 1f / atlasSize)
-        );
+        //buffer.SetGlobalVector(
+        //    shadowAtlasSizeId, new Vector4(atlasSize, 1f / atlasSize)
+        //);
         buffer.EndSample(bufferName);
         ExecuteBuffer();
     }
@@ -315,22 +346,65 @@ public class Shadows
 
     public Vector4 ReserveOtherShadows(Light light, int visibleLightIndex)
     {
-        if(light.shadows != LightShadows.None && light.shadowStrength > 0f)
+        if (light.shadows == LightShadows.None && light.shadowStrength <= 0f)
         {
-            LightBakingOutput lightBaking = light.bakingOutput;
-            if(
-                lightBaking.lightmapBakeType == LightmapBakeType.Mixed &&
-                lightBaking.mixedLightingMode == MixedLightingMode.Shadowmask
-                )
-            {
-                useShadowMask = true;
-                return new Vector4(
-                    light.shadowStrength, 0f, 0f,
-                    lightBaking.occlusionMaskChannel
-                    );
-            }
+            return new Vector4(0f, 0f, 0f, -1f);
         }
-        return new Vector4(0f, 0f, 0f, -1f);
+
+        float maskChannel = -1f;
+        LightBakingOutput lightBaking = light.bakingOutput;
+        if (
+            lightBaking.lightmapBakeType == LightmapBakeType.Mixed &&
+            lightBaking.mixedLightingMode == MixedLightingMode.Shadowmask
+            )
+        {
+            useShadowMask = true;
+            maskChannel = lightBaking.occlusionMaskChannel;
+        }
+        //返回之前检查灯光是否超过最大值
+        //检查是否有阴影可以渲染
+        if (
+            shadowedOtherLightCount >= maxShadowedOtherLightCount ||
+            !cullingResults.GetShadowCasterBounds(visibleLightIndex,out Bounds b)
+            )
+        {
+            return new Vector4(-light.shadowStrength, 0f, 0f,maskChannel);
+        }
+        return new Vector4(
+            light.shadowStrength, shadowedOtherLightCount++, 0f,
+            maskChannel
+        );
+    }
+
+    void RenderOtherShadows()
+    {
+        int atlasSize = (int)settings.other.atlasSize;
+        atlasSizes.z = atlasSize;
+        atlasSizes.w = 1f / atlasSize;
+        buffer.GetTemporaryRT(otherShadowAtlasId, atlasSize, atlasSize,
+            32, FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
+        buffer.SetRenderTarget(
+            otherShadowAtlasId,
+            RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+        buffer.ClearRenderTarget(true, false, Color.clear);
+        buffer.BeginSample(bufferName);
+        ExecuteBuffer();
+        //如果有多个灯光，就分割图集
+        int tiles = shadowedOtherLightCount;
+        int split = tiles <= 1 ? 1 : tiles <= 4 ? 2 : 4;
+        int tileSize = atlasSize / split;
+
+        for (int i = 0; i < shadowedOtherLightCount; i++)
+        {
+            
+        }
+       
+        buffer.SetGlobalMatrixArray(otherShadowMatricesId, otherShadowMatrices);
+
+        SetKeywords(otherFilterKeywords, (int)settings.other.filter - 1);
+
+        buffer.EndSample(bufferName);
+        ExecuteBuffer();
     }
 
     void ExecuteBuffer()
@@ -343,6 +417,10 @@ public class Shadows
     {
         //shadow map用完就要释放
         buffer.ReleaseTemporaryRT(dirShadowAtlasId);
+        if(shadowedOtherLightCount > 0)
+        {
+            buffer.ReleaseTemporaryRT(otherShadowAtlasId);
+        }
         ExecuteBuffer();
     }
 }
