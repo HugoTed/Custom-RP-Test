@@ -3,6 +3,8 @@ using UnityEngine.Rendering;
 
 public partial class CameraRenderer
 {
+    static int frameBufferId = Shader.PropertyToID("_CameraFrameBuffer");
+
     const string bufferName = "Render Camera";
 
     CommandBuffer buffer = new CommandBuffer() { name = bufferName };
@@ -19,9 +21,11 @@ public partial class CameraRenderer
 
     Lighting lighting = new Lighting();
 
+    PostFXStack postFXStack = new PostFXStack();
+
     public void Render(ScriptableRenderContext context, Camera camera,
         bool useDynamicBatching, bool useGPUInstancing, bool useLightsPerObject,
-        ShadowSettings shadowSettings)
+        ShadowSettings shadowSettings,PostFXSettings postFXSettings)
     {
         this.context = context;
         this.camera = camera;
@@ -36,12 +40,18 @@ public partial class CameraRenderer
         ExecuteBuffer();
         //初始化灯光
         lighting.Setup(context, cullingResults, shadowSettings, useLightsPerObject);
+        postFXStack.Setup(context, camera, postFXSettings);
         buffer.EndSample(SampleName);
         Setup();
         DrawVisibleGeometry(useDynamicBatching, useGPUInstancing, useLightsPerObject);
         DrawUnsupportShaders();
-        DrawGizmos();
-        lighting.Cleanup();
+        DrawGizmosBeforeFX();
+        if (postFXStack.isActive())
+        {
+            postFXStack.Render(frameBufferId);
+        }
+        DrawGizmosAfterFX();
+        Cleanup();
         Sumbit();
     }
 
@@ -52,6 +62,22 @@ public partial class CameraRenderer
         //CameraClearFlags枚举定义了四个值。从 1 到 4，它们是Skybox、Color、Depth和Nothing。
         
         CameraClearFlags flags = camera.clearFlags;
+        if (postFXStack.isActive())
+        {
+            if (flags > CameraClearFlags.Color)
+            {
+                flags= CameraClearFlags.Color;
+            }
+            buffer.GetTemporaryRT(
+                frameBufferId, camera.pixelWidth, camera.pixelHeight,
+                32, FilterMode.Bilinear, RenderTextureFormat.Default
+                );
+            //设置为渲染目标
+            buffer.SetRenderTarget(
+                frameBufferId,
+                RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
+                );
+        }
         //除了Nothing值，在flags的值不大于Depth的所有情况下都必须清除深度缓冲区(depth buffer)。
         //渲染之前清除旧内容
         buffer.ClearRenderTarget(
@@ -137,5 +163,14 @@ public partial class CameraRenderer
             return true;
         }
         return false;
+    }
+
+    void Cleanup()
+    {
+        lighting.Cleanup();
+        if (postFXStack.isActive())
+        {
+            buffer.ReleaseTemporaryRT(frameBufferId);
+        }
     }
 }
