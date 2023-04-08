@@ -43,6 +43,8 @@ public class PostFXSettings : ScriptableObject
         public float intensity;
 
         public bool bicubicUpsampling;
+
+        public bool fadeFireflies;
     }
 
     [SerializeField]
