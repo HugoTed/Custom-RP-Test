@@ -9,8 +9,11 @@ public partial class PostFXStack
         bloomPrefilterId = Shader.PropertyToID("_BloomPrefilter"),
         bloomThresholdId = Shader.PropertyToID("_BloomThreshold"),
         bloomIntensityId = Shader.PropertyToID("_BloomIntensity"),
+        bloomResultId = Shader.PropertyToID("_BloomResult"),
         fxSourceId = Shader.PropertyToID("_PostFXSource"),
         fxSource2Id = Shader.PropertyToID("_PostFXSource2");
+        
+
 
     const string bufferName = "Post FX";
 
@@ -31,10 +34,16 @@ public partial class PostFXStack
     {
         BloomHorizontal,
         BloomVertical,
-        BloomCombine,
+        BloomAdd,
         BloomPrefilter,
         Copy,
-        BloomPrefilterFireflies
+        BloomPrefilterFireflies,
+        BloomScatter,
+        BloomScatterFinal,
+        ToneMappingACES,
+        ToneMappingNeutral,
+        ToneMappingReinhard,
+        
     }
 
     const int maxBloomPyramidLevels = 16;
@@ -65,7 +74,15 @@ public partial class PostFXStack
 
     public void Render(int sourceId)
     {
-        DoBloom(sourceId);
+        if (DoBloom(sourceId))
+        {
+            DoToneMapping(bloomResultId);
+            buffer.ReleaseTemporaryRT(bloomResultId);
+        }
+        else
+        {
+            DoToneMapping(sourceId);
+        }
         context.ExecuteCommandBuffer(buffer);
         buffer.Clear();
     }
@@ -84,9 +101,9 @@ public partial class PostFXStack
             );
     }
 
-    void DoBloom(int sourceId)
+    bool DoBloom(int sourceId)
     {
-        buffer.BeginSample("Bloom");
+       
         PostFXSettings.BloomSettings bloom = settings.Bloom;
         int width = camera.pixelWidth/2,height = camera.pixelHeight/2;
         if (
@@ -94,10 +111,12 @@ public partial class PostFXStack
             height < bloom.downScaleLimit * 2 || width < bloom.downScaleLimit * 2
             )
         {
-            Draw(sourceId, BuiltinRenderTextureType.CameraTarget, Pass.Copy);
-            buffer.EndSample("Bloom");
-            return;
+            //Draw(sourceId, BuiltinRenderTextureType.CameraTarget, Pass.Copy);
+            //buffer.EndSample("Bloom");
+            return false;
         }
+
+        buffer.BeginSample("Bloom");
 
         Vector4 threshold;
         threshold.x = Mathf.GammaToLinearSpace(bloom.threshold);
@@ -157,10 +176,27 @@ public partial class PostFXStack
         //            ↓   ↓   ↓
         // Dest    ← 0 ← 2 ← 5     
         //
+
         buffer.SetGlobalFloat(
             bloomBicubicUpsamplingId, bloom.bicubicUpsampling ? 1f : 0f
             );
-        buffer.SetGlobalFloat(bloomIntensityId, 1f);
+        Pass combinePass, finalPass;
+        float finalIntensity;
+        if (bloom.mode == PostFXSettings.BloomSettings.Mode.Additive)
+        {
+            combinePass = finalPass = Pass.BloomAdd;
+            buffer.SetGlobalFloat(bloomIntensityId, 1f);
+            finalIntensity = bloom.intensity;
+        }
+        else
+        {
+            combinePass = Pass.BloomScatter;
+            finalPass = Pass.BloomScatterFinal;
+            buffer.SetGlobalFloat(bloomIntensityId, bloom.scatter);
+            finalIntensity = Mathf.Min(bloom.intensity, 0.95f);
+        }
+        
+        
         if(i > 1)
         {
             buffer.ReleaseTemporaryRT(fromId - 1);
@@ -169,7 +205,7 @@ public partial class PostFXStack
             for (i -= 1; i > 0; i--)
             {
                 buffer.SetGlobalTexture(fxSource2Id, toId + 1);
-                Draw(fromId, toId, Pass.BloomCombine);
+                Draw(fromId, toId, combinePass);
                 buffer.ReleaseTemporaryRT(fromId);
                 buffer.ReleaseTemporaryRT(toId + 1);
                 fromId = toId;
@@ -180,10 +216,22 @@ public partial class PostFXStack
         {
             buffer.ReleaseTemporaryRT(bloomPyramidId);
         }
-        buffer.SetGlobalFloat(bloomIntensityId, bloom.intensity);
+        buffer.SetGlobalFloat(bloomIntensityId, finalIntensity);
         buffer.SetGlobalTexture(fxSource2Id, sourceId);
-        Draw(fromId,BuiltinRenderTextureType.CameraTarget,Pass.BloomCombine);
+        buffer.GetTemporaryRT(
+            bloomResultId, camera.pixelWidth, camera.pixelHeight, 0,
+            FilterMode.Bilinear, format
+            );
+        Draw(fromId, bloomResultId, finalPass);
         buffer.ReleaseTemporaryRT(fromId);
         buffer.EndSample("Bloom");
+        return true;
+    }
+
+    void DoToneMapping(int sourceId)
+    {
+        PostFXSettings.ToneMappingSetting.Mode mode = settings.ToneMapping.mode;
+        Pass pass = mode < 0 ? Pass.Copy : Pass.ToneMappingACES + (int)mode;
+        Draw(sourceId, BuiltinRenderTextureType.CameraTarget, pass);
     }
 }

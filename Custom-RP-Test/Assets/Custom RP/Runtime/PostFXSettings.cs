@@ -45,10 +45,33 @@ public class PostFXSettings : ScriptableObject
         public bool bicubicUpsampling;
 
         public bool fadeFireflies;
+
+        public enum Mode { Additive,Scattering};
+
+        public Mode mode;
+
+        [Range(0.05f, 0.95f)]
+        public float scatter;
     }
 
     [SerializeField]
-    BloomSettings bloom = default;
+    BloomSettings bloom = new BloomSettings
+    {
+        scatter = 0.7f
+    };
+
+    [Serializable]
+    public struct ToneMappingSetting
+    {
+        public enum Mode { None = -1, ACES, Neutral, Reinhard }
+        public Mode mode;
+
+    }
+
+    [SerializeField]
+    ToneMappingSetting toneMapping = default;
 
     public BloomSettings Bloom => bloom;
+
+    public ToneMappingSetting ToneMapping => toneMapping;
 }
