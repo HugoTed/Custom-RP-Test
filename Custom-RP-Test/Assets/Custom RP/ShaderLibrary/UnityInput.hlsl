@@ -8,6 +8,8 @@ float4x4 unity_WorldToObject;
 float4 unity_LODFade;
 real4 unity_WorldTransformParams;
 
+float4 unity_RenderingLayer;
+
 //灯光数量包含在y分量中
 real4 unity_LightData;
 //每个通道包含一个灯光索引

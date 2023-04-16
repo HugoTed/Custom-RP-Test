@@ -89,6 +89,7 @@ float4 LitPassFragment (Varyings input) : SV_TARGET {
 	surface.smoothness = GetSmoothness(config);
 	surface.fresnelStrength = GetFresnel(config);
 	surface.dither = InterleavedGradientNoise(input.positionCS.xy,0);
+    surface.renderingLayerMask = asuint(unity_RenderingLayer.x);
 	#if defined(_PREMULTIPLY_ALPHA)
 		BRDF brdf = GetBRDF(surface,true);
 	#else
@@ -98,7 +99,7 @@ float4 LitPassFragment (Varyings input) : SV_TARGET {
 	//GI gi = GetGI(0.0);
 	float3 color = GetLighting(surface,brdf,gi);
 	color += GetEmission(config);
-	return float4(color,surface.alpha);
+    return float4(color, GetFinalAlpha(surface.alpha));
 }
 
 #endif

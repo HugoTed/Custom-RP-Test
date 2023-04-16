@@ -250,7 +250,10 @@ public class Shadows
     {
         ShadowedDirectionalLight light = shadowedDirectionalLights[index];
         var shadowSettings =
-            new ShadowDrawingSettings(cullingResults, light.visibleLightIndex);
+            new ShadowDrawingSettings(cullingResults, light.visibleLightIndex)
+            {
+                useRenderingLayerMaskTest = true,
+            };
         //级联阴影
         int cascadeCount = settings.directional.cascadeCount;
         int tileOffset = index * cascadeCount;

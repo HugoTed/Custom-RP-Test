@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: e374de8942f6ddd44a3ac80b0b7ba3b4, type: 3}
-  m_Name: Post FX Settings
+  m_Name: Post FX Settings 2
   m_EditorClassIdentifier: 
   shader: {fileID: 4800000, guid: 1be28e11ded510948b0cfed4669c5eec, type: 3}
   bloom:
-    maxIterations: 2
+    maxIterations: 0
     downScaleLimit: 5
     threshold: 0.88
     thresholdKnee: 0
@@ -30,22 +30,22 @@ MonoBehaviour:
     hueShift: 0
     saturation: 0
   toneMapping:
-    mode: 2
+    mode: 1
   whiteBalance:
     temperature: -30.1
     tint: -7.3
   splitToning:
-    shadows: {r: 1, g: 0.46849027, b: 0, a: 1}
-    highlights: {r: 0.6179246, g: 0.8018743, b: 1, a: 1}
+    shadows: {r: 0, g: 0.6037736, b: 0.022282006, a: 1}
+    highlights: {r: 1, g: 0.60532504, b: 0.2783019, a: 1}
     balance: 3
   channelMixer:
     red: {x: 1, y: 0, z: 0}
     green: {x: 0, y: 1, z: 0}
     blue: {x: 0, y: 0, z: 1}
   shadowsMidtonesHighlights:
-    shadows: {r: 1, g: 0.30589086, b: 0, a: 1}
+    shadows: {r: 1, g: 1, b: 1, a: 1}
     midtones: {r: 0.9103774, g: 1, b: 0.92575085, a: 1}
-    highlights: {r: 0.9504323, g: 0.75, b: 1, a: 1}
+    highlights: {r: 1, g: 1, b: 1, a: 1}
     shadowsStart: 0
     shadowsEnd: 0.15
     highlightsStart: 1.614

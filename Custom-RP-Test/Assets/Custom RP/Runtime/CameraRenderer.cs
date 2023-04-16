@@ -13,6 +13,8 @@ public partial class CameraRenderer
 
     Camera camera;
 
+    static CameraSettings defaultCameraSettings = new CameraSettings();
+
     CullingResults cullingResults;
 
     static ShaderTagId
@@ -32,6 +34,15 @@ public partial class CameraRenderer
     {
         this.context = context;
         this.camera = camera;
+
+        var crpCamera = camera.GetComponent<CustomRenderPipelineCamera>();
+        CameraSettings cameraSettings = crpCamera ? crpCamera.Settings : defaultCameraSettings;
+
+        if (cameraSettings.overridePostFX)
+        {
+            postFXSettings = cameraSettings.postFXSettings;
+        }
+
         PrepareBuffer();
         //在剔除之前完成UI
         PrepareForSceneWindow();
@@ -43,11 +54,20 @@ public partial class CameraRenderer
         buffer.BeginSample(SampleName);
         ExecuteBuffer();
         //初始化灯光
-        lighting.Setup(context, cullingResults, shadowSettings, useLightsPerObject);
-        postFXStack.Setup(context, camera, postFXSettings, useHDR, colorLUTResolution);
+        //cameraSettings.renderingLayerMask = -1 as everything
+        lighting.Setup(
+            context, cullingResults, shadowSettings, useLightsPerObject,
+            cameraSettings.maskLights ? cameraSettings.renderingLayerMask : -1
+            );
+        postFXStack.Setup(context, camera, postFXSettings, useHDR, colorLUTResolution,
+            cameraSettings.finalBlendMode
+            );
         buffer.EndSample(SampleName);
         Setup();
-        DrawVisibleGeometry(useDynamicBatching, useGPUInstancing, useLightsPerObject);
+        DrawVisibleGeometry(
+            useDynamicBatching, useGPUInstancing, useLightsPerObject,
+            cameraSettings.renderingLayerMask
+            );
         DrawUnsupportShaders();
         DrawGizmosBeforeFX();
         if (postFXStack.isActive())
@@ -114,7 +134,10 @@ public partial class CameraRenderer
         buffer.Clear();
     }
 
-    void DrawVisibleGeometry(bool useDynamicBatching,bool useGPUInstancing,bool useLightsPerObject)
+    void DrawVisibleGeometry(
+        bool useDynamicBatching,bool useGPUInstancing,bool useLightsPerObject,
+        int renderingLayerMask
+        )
     {
         //是否启用lightsPerObject模式
         //启用了该模式，Unity会确定哪些灯光影响每个对象并将此信息发送到GPU
@@ -145,7 +168,9 @@ public partial class CameraRenderer
         //设置lit pass
         drawingSettings.SetShaderPassName(1, litShaderTagId);
         //允许所有渲染队列
-        var filteringSettings = new FilteringSettings(RenderQueueRange.opaque);
+        var filteringSettings = new FilteringSettings(
+            RenderQueueRange.opaque,renderingLayerMask:(uint)renderingLayerMask
+            );
         //调用剔除结果作为参数进行渲染
         context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings);
         context.DrawSkybox(camera);
