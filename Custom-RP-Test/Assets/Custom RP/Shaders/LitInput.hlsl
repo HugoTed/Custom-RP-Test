@@ -31,6 +31,7 @@ UNITY_INSTANCING_BUFFER_START(Props)
 UNITY_INSTANCING_BUFFER_END(Props)
 
 struct InputConfig {
+    Fragment fragment;
 	float2 baseUV;
 	float2 detailUV;
 	bool useMask;
@@ -42,8 +43,10 @@ float GetFinalAlpha(float alpha)
     return INPUT_PROP(_ZWrite) ? 1.0 : alpha;
 }
 
-InputConfig GetInputConfig(float2 baseUV, float2 detailUV = 0.0) {
+InputConfig GetInputConfig(float4 positionSS, float2 baseUV, float2 detailUV = 0.0)
+{
 	InputConfig c;
+    c.fragment = GetFragment(positionSS);
 	c.baseUV = baseUV;
 	c.detailUV = detailUV;
 	c.useMask = false;

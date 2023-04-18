@@ -20,7 +20,7 @@ struct Attributes{
 };
 
 struct Varyings {
-	float4 positionCS : SV_POSITION;
+    float4 positionCS_SS : SV_POSITION;
 	float3 positionWS : VAR_POSITION;
 	float3 normalWS : VAR_NORMAL;
 #if defined(_NORMAL_MAP)
@@ -39,8 +39,8 @@ Varyings LitPassVertex (Attributes input) { //: SV_POSITION {
 	UNITY_SETUP_INSTANCE_ID(input);
 	UNITY_TRANSFER_INSTANCE_ID(input, output);
 	TRANSFER_GI_DATA(input, output);
-	output.positionWS = TransformObjectToWorld(input.positionOS);
-	output.positionCS = TransformWorldToHClip(output.positionWS);
+    output.positionWS = TransformObjectToWorld(input.positionOS);
+    output.positionCS_SS = TransformWorldToHClip(output.positionWS);
 	output.normalWS = TransformObjectToWorldNormal(input.normalOS);
 #if defined(_NORMAL_MAP)
 	output.tangentWS = float4(TransformObjectToWorldDir(input.tangentOS.xyz), input.tangentOS.w);
@@ -53,9 +53,9 @@ Varyings LitPassVertex (Attributes input) { //: SV_POSITION {
 }
 float4 LitPassFragment (Varyings input) : SV_TARGET {
 	UNITY_SETUP_INSTANCE_ID(input);
-	ClipLOD(input.positionCS.xy, unity_LODFade.x);
 
-	InputConfig config = GetInputConfig(input.baseUV);
+    InputConfig config = GetInputConfig(input.positionCS_SS,input.baseUV);
+    ClipLOD(config.fragment, unity_LODFade.x);
 
 #if defined(_MASK_MAP)
 	config.useMask = true;
@@ -88,7 +88,7 @@ float4 LitPassFragment (Varyings input) : SV_TARGET {
 	surface.occlusion = GetOcclusion(config);
 	surface.smoothness = GetSmoothness(config);
 	surface.fresnelStrength = GetFresnel(config);
-	surface.dither = InterleavedGradientNoise(input.positionCS.xy,0);
+    surface.dither = InterleavedGradientNoise(config.fragment.positionSS, 0);
     surface.renderingLayerMask = asuint(unity_RenderingLayer.x);
 	#if defined(_PREMULTIPLY_ALPHA)
 		BRDF brdf = GetBRDF(surface,true);
@@ -99,6 +99,7 @@ float4 LitPassFragment (Varyings input) : SV_TARGET {
 	//GI gi = GetGI(0.0);
 	float3 color = GetLighting(surface,brdf,gi);
 	color += GetEmission(config);
+    //return float4(config.fragment.depth.xxx / 20.0, 1.0);
     return float4(color, GetFinalAlpha(surface.alpha));
 }
 
