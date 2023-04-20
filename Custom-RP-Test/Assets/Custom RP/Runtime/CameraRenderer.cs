@@ -3,7 +3,11 @@ using UnityEngine.Rendering;
 
 public partial class CameraRenderer
 {
-    static int frameBufferId = Shader.PropertyToID("_CameraFrameBuffer");
+    static int
+        colorAttachmentId = Shader.PropertyToID("_CameraColorAttachment"),
+        depthAttachmentId = Shader.PropertyToID("_CameraDepthAttachment"),
+        depthTextureId = Shader.PropertyToID("_CameraDepthTexture"),
+        sourceTextureId = Shader.PropertyToID("_SourceTexture");
 
     const string bufferName = "Render Camera";
 
@@ -27,6 +31,31 @@ public partial class CameraRenderer
 
     bool useHDR;
 
+    bool useDepthTexture, useIntermediateBuffer;
+
+    Material material;
+
+    public CameraRenderer(Shader shader)
+    {
+        material = CoreUtils.CreateEngineMaterial(shader);
+    }
+
+    public void Dispose()
+    {
+        CoreUtils.Destroy(material);
+    }
+
+    void Draw(RenderTargetIdentifier from, RenderTargetIdentifier to)
+    {
+        buffer.SetGlobalTexture(sourceTextureId, from);
+        buffer.SetRenderTarget(
+            to, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
+        );
+        buffer.DrawProcedural(
+            Matrix4x4.identity, material, 0, MeshTopology.Triangles, 3
+        );
+    }
+
     public void Render(ScriptableRenderContext context, Camera camera,bool allowHDR,
         bool useDynamicBatching, bool useGPUInstancing, bool useLightsPerObject,
         ShadowSettings shadowSettings,PostFXSettings postFXSettings,
@@ -37,6 +66,8 @@ public partial class CameraRenderer
 
         var crpCamera = camera.GetComponent<CustomRenderPipelineCamera>();
         CameraSettings cameraSettings = crpCamera ? crpCamera.Settings : defaultCameraSettings;
+
+        useDepthTexture = true;
 
         if (cameraSettings.overridePostFX)
         {
@@ -72,7 +103,12 @@ public partial class CameraRenderer
         DrawGizmosBeforeFX();
         if (postFXStack.isActive())
         {
-            postFXStack.Render(frameBufferId);
+            postFXStack.Render(colorAttachmentId);
+        }
+        else if (useIntermediateBuffer)
+        {
+            Draw(colorAttachmentId, BuiltinRenderTextureType.CameraTarget);
+            ExecuteBuffer();
         }
         DrawGizmosAfterFX();
         Cleanup();
@@ -86,21 +122,29 @@ public partial class CameraRenderer
         //CameraClearFlags枚举定义了四个值。从 1 到 4，它们是Skybox、Color、Depth和Nothing。
         
         CameraClearFlags flags = camera.clearFlags;
-        if (postFXStack.isActive())
+        useIntermediateBuffer = useDepthTexture || postFXStack.isActive();
+        if (useIntermediateBuffer)
         {
             if (flags > CameraClearFlags.Color)
             {
                 flags= CameraClearFlags.Color;
             }
             buffer.GetTemporaryRT(
-                frameBufferId, camera.pixelWidth, camera.pixelHeight,
-                32, FilterMode.Bilinear,
+                colorAttachmentId, camera.pixelWidth, camera.pixelHeight,
+                0, FilterMode.Bilinear,
                 useHDR ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default
+                );
+            //Depth
+            buffer.GetTemporaryRT(
+                depthAttachmentId, camera.pixelWidth, camera.pixelHeight,
+                32, FilterMode.Point,RenderTextureFormat.Depth
                 );
             //设置为渲染目标
             buffer.SetRenderTarget(
-                frameBufferId,
-                RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store
+                colorAttachmentId,
+                RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store,
+                depthAttachmentId,
+                RenderBufferLoadAction.DontCare,RenderBufferStoreAction.Store
                 );
         }
         //除了Nothing值，在flags的值不大于Depth的所有情况下都必须清除深度缓冲区(depth buffer)。
@@ -174,12 +218,26 @@ public partial class CameraRenderer
         //调用剔除结果作为参数进行渲染
         context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings);
         context.DrawSkybox(camera);
+        CopyAttachments();
 
         //先渲染不透明物体，再渲染天空盒，再由远到近渲染透明物体
         sortingSettings.criteria = SortingCriteria.CommonTransparent;
         drawingSettings.sortingSettings = sortingSettings;
         filteringSettings.renderQueueRange = RenderQueueRange.transparent;
         context.DrawRenderers(cullingResults, ref drawingSettings, ref filteringSettings);
+    }
+
+    void CopyAttachments()
+    {
+        if(useDepthTexture)
+        {
+            buffer.GetTemporaryRT(
+                depthTextureId, camera.pixelWidth, camera.pixelHeight,
+                32, FilterMode.Point, RenderTextureFormat.Depth
+            );
+            buffer.CopyTexture(depthAttachmentId, depthTextureId);
+            ExecuteBuffer();
+        }
     }
 
     bool Cull(float maxShadowDistance)
@@ -198,9 +256,15 @@ public partial class CameraRenderer
     void Cleanup()
     {
         lighting.Cleanup();
-        if (postFXStack.isActive())
+        if (useIntermediateBuffer)
         {
-            buffer.ReleaseTemporaryRT(frameBufferId);
+            buffer.ReleaseTemporaryRT(colorAttachmentId);
+            buffer.ReleaseTemporaryRT(depthAttachmentId);
+            if (useDepthTexture)
+            {
+                buffer.ReleaseTemporaryRT(depthTextureId);
+            }
         }
+        
     }
 }

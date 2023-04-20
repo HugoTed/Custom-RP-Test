@@ -34,3 +34,5 @@ MonoBehaviour:
       filter: 0
   postFXSettings: {fileID: 11400000, guid: 4a3e7ccddf0c75740a842310cf6a3249, type: 2}
   colorLUTResolution: 32
+  cameraRendererShader: {fileID: 4800000, guid: 7c7874c630d620d44a07c104c223ebf1,
+    type: 3}

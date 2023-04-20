@@ -3,7 +3,7 @@ using UnityEngine.Rendering;
 
 public partial class CustomRenderPipeline : RenderPipeline
 {
-    CameraRenderer renderer = new CameraRenderer();
+    CameraRenderer renderer;
 
     bool useDynamicBatching,
         useGPUInstancing,
@@ -20,7 +20,8 @@ public partial class CustomRenderPipeline : RenderPipeline
         bool allowHDR,
         bool useDynamicBatching, bool useGPUInstancing,
         bool useSRPBatecher,bool useLightsPerObject,ShadowSettings shadowSettings,
-        PostFXSettings postFXSettings, int colorLUTResolution
+        PostFXSettings postFXSettings, int colorLUTResolution,
+        Shader cameraRendererShader
         )
     {
         this.colorLUTResolution = colorLUTResolution;
@@ -35,6 +36,7 @@ public partial class CustomRenderPipeline : RenderPipeline
         GraphicsSettings.lightsUseLinearIntensity = true;
 
         InitializeForEditor();
+        renderer = new CameraRenderer(cameraRendererShader);
     }
     protected override void Render(ScriptableRenderContext context, Camera[] cameras)
     {
@@ -46,5 +48,12 @@ public partial class CustomRenderPipeline : RenderPipeline
                 shadowSettings, postFXSettings, colorLUTResolution
                 );
         }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        DisposeForEditor();
+        renderer.Dispose();
     }
 }
