@@ -45,6 +45,7 @@ Varyings UnlitPassVertex (Attributes input) { //: SV_POSITION {
 float4 UnlitPassFragment (Varyings input) : SV_TARGET {
 	UNITY_SETUP_INSTANCE_ID(input);
     InputConfig config = GetInputConfig(input.positionCS_SS,input.baseUV);
+	
 	#if defined(_VERTEX_COLORS)
 		config.color = input.color;
 	#endif

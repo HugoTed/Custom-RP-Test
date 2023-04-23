@@ -9793,6 +9793,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   settings:
+    copyDepth: 1
     renderingLayerMask: -1
     maskLights: 0
     overridePostFX: 1

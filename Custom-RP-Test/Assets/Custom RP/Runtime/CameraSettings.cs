@@ -4,6 +4,8 @@ using UnityEngine.Rendering;
 [Serializable]
 public class CameraSettings 
 {
+    public bool copyDepth = true;
+
     [RenderingLayerMaskField]
     public int renderingLayerMask = -1;
 

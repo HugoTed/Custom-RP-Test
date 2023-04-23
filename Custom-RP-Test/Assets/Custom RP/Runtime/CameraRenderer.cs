@@ -56,7 +56,8 @@ public partial class CameraRenderer
         );
     }
 
-    public void Render(ScriptableRenderContext context, Camera camera,bool allowHDR,
+    public void Render(ScriptableRenderContext context, Camera camera,
+        CameraBufferSettings bufferSettings,
         bool useDynamicBatching, bool useGPUInstancing, bool useLightsPerObject,
         ShadowSettings shadowSettings,PostFXSettings postFXSettings,
         int colorLUTResolution)
@@ -67,7 +68,14 @@ public partial class CameraRenderer
         var crpCamera = camera.GetComponent<CustomRenderPipelineCamera>();
         CameraSettings cameraSettings = crpCamera ? crpCamera.Settings : defaultCameraSettings;
 
-        useDepthTexture = true;
+        if(camera.cameraType == CameraType.Reflection)
+        {
+            useDepthTexture = bufferSettings.copyDepthReflections;
+        }
+        else
+        {
+            useDepthTexture = bufferSettings.copyDepth && cameraSettings.copyDepth;
+        }
 
         if (cameraSettings.overridePostFX)
         {
@@ -81,7 +89,7 @@ public partial class CameraRenderer
         {
             return;
         }
-        useHDR = allowHDR && camera.allowHDR;
+        useHDR = bufferSettings.allowHDR && camera.allowHDR;
         buffer.BeginSample(SampleName);
         ExecuteBuffer();
         //初始化灯光
