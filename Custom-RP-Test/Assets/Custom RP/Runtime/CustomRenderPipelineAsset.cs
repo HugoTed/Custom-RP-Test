@@ -4,12 +4,7 @@ using UnityEngine.Rendering;
 [CreateAssetMenu(menuName ="Rendering/Custom Render Pipeline")]
 public partial class CustomRenderPipelineAsset : RenderPipelineAsset
 {
-    [SerializeField]
-    CameraBufferSettings cameraBuffer = new CameraBufferSettings
-    {
-        allowHDR = true
-    };
-
+    
     [SerializeField]
     bool 
         useDynamicBatching = true,
@@ -30,6 +25,12 @@ public partial class CustomRenderPipelineAsset : RenderPipelineAsset
 
     [SerializeField]
     Shader cameraRendererShader = default;
+
+    [SerializeField]
+    CameraBufferSettings cameraBuffer = new CameraBufferSettings
+    {
+        allowHDR = true
+    };
     protected override RenderPipeline CreatePipeline()
     {
         return new CustomRenderPipeline(
