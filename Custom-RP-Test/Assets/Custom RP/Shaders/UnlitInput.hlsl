@@ -7,6 +7,8 @@
 TEXTURE2D(_BaseMap);
 TEXTURE2D(_EmissionMap);
 SAMPLER(sampler_BaseMap);
+TEXTURE2D(_DistortionMap);
+SAMPLER(sampler_DistortionMap);
 
 UNITY_INSTANCING_BUFFER_START(Props)
 	UNITY_DEFINE_INSTANCED_PROP(float4, _BaseMap_ST)
@@ -15,6 +17,8 @@ UNITY_INSTANCING_BUFFER_START(Props)
 	UNITY_DEFINE_INSTANCED_PROP(float, _NearFadeRange)
 	UNITY_DEFINE_INSTANCED_PROP(float, _SoftParticlesDistance)
 	UNITY_DEFINE_INSTANCED_PROP(float, _SoftParticlesRange)
+	UNITY_DEFINE_INSTANCED_PROP(float, _DistortionStrength)
+    UNITY_DEFINE_INSTANCED_PROP(float, _DistortionBlend)
 	UNITY_DEFINE_INSTANCED_PROP(float, _Cutoff)
 	UNITY_DEFINE_INSTANCED_PROP(float4, _EmissionColor)
 	UNITY_DEFINE_INSTANCED_PROP(float, _ZWrite)
@@ -100,5 +104,23 @@ float3 GetEmission(InputConfig c) {
 
 float GetFresnel(InputConfig c) {
 	return 0.0;
+}
+
+float2 GetDistortion(InputConfig c)
+{
+    float4 rawMap = SAMPLE_TEXTURE2D(_DistortionMap, sampler_DistortionMap, c.baseUV);
+    if (c.flipbookBlending)
+    {
+        rawMap = lerp(
+			rawMap, SAMPLE_TEXTURE2D(_DistortionMap, sampler_DistortionMap, c.flipbookUVB.xy),
+			c.flipbookUVB.z
+		);
+    }
+    return DecodeNormal(rawMap, INPUT_PROP(_DistortionStrength)).xy;
+}
+
+float GetDistortionBlend(InputConfig c)
+{
+    return INPUT_PROP(_DistortionBlend);
 }
 #endif
