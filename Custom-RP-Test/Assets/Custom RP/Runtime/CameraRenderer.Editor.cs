@@ -79,6 +79,7 @@ partial class CameraRenderer
         if(camera.cameraType == CameraType.SceneView)
         {
             ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
+            useScaledRendering = false;
         }
     }
     //给不同摄像机的buffer定义不同的名称
