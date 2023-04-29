@@ -168,9 +168,14 @@ public partial class CameraRenderer
             context, cullingResults, shadowSettings, useLightsPerObject,
             cameraSettings.maskLights ? cameraSettings.renderingLayerMask : -1
             );
-        postFXStack.Setup(context, camera, bufferSize, postFXSettings, useHDR, colorLUTResolution,
-            cameraSettings.finalBlendMode, bufferSettings.bicubicRescaling
+
+        bufferSettings.fxaa.enabled &= cameraSettings.allowFXAA;
+        postFXStack.Setup(context, camera, bufferSize, postFXSettings, cameraSettings.keepAlpha, useHDR,
+            colorLUTResolution,
+            cameraSettings.finalBlendMode, bufferSettings.bicubicRescaling,
+            bufferSettings.fxaa
             );
+
         buffer.EndSample(SampleName);
         Setup();
         DrawVisibleGeometry(

@@ -43,3 +43,9 @@ MonoBehaviour:
     copyDepthReflections: 0
     renderScale: 1
     bicubicRescaling: 0
+    fxaa:
+      enabled: 1
+      fixedThreshold: 0.0833
+      relativeThreshold: 0.333
+      subpixelBlending: 0.341
+      quality: 0

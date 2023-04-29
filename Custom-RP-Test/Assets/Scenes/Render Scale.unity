@@ -566,9 +566,11 @@ MonoBehaviour:
     renderingLayerMask: -1
     maskLights: 0
     renderScaleMode: 1
-    renderScale: 0.25
+    renderScale: 1
     overridePostFX: 1
     postFXSettings: {fileID: 11400000, guid: 4a3e7ccddf0c75740a842310cf6a3249, type: 2}
+    allowFXAA: 1
+    keepAlpha: 1
     finalBlendMode:
       source: 1
       destination: 0
@@ -782,6 +784,8 @@ MonoBehaviour:
     renderScale: 1
     overridePostFX: 1
     postFXSettings: {fileID: 0}
+    allowFXAA: 0
+    keepAlpha: 0
     finalBlendMode:
       source: 1
       destination: 0
@@ -1126,6 +1130,8 @@ MonoBehaviour:
     renderScale: 0.262
     overridePostFX: 1
     postFXSettings: {fileID: 0}
+    allowFXAA: 0
+    keepAlpha: 0
     finalBlendMode:
       source: 1
       destination: 10
